@@ -15,6 +15,21 @@ when clicked on **find similar** we are able to find images based on similarity 
 
 
 
+**APPROACH**
+The project implements a Visual Product Matcher using a combination of OpenAI CLIP embeddings and scikit-learn similarity search. The core idea is to represent every image in the dataset as a high-dimensional embedding and then compare new queries (uploaded images or URLs) against these embeddings to retrieve the most similar items.
+First, a dataset of ~250 product images (shoes, handbags, watches, etc.) was prepared, with metadata stored in products.csv. Each image was passed through CLIP’s ViT-B/32 model to extract a 512-dimensional embedding vector. These embeddings were stored in an index file (index_file.pkl), along with image paths (image_paths.pkl).
+For similarity search, we used Nearest Neighbors (cosine similarity) from scikit-learn. At query time, the uploaded image (or URL image) is embedded via CLIP, and its similarity with dataset embeddings is computed. Results are ranked by similarity scores and displayed in a responsive Streamlit interface, with a slider to filter weak matches.
+The app supports:
+Uploading an image or fetching from a URL
+Viewing the uploaded image
+Displaying top-k (k=3) similar items with similarity scores
+
+Finally, the project was deployed on Streamlit Community Cloud for public access.
+
+
+
+
+
 ---
 
 ## 🚀 Features
