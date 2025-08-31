@@ -118,7 +118,7 @@ with left:
 
         if uploaded_file is not None:
             uploaded_preview_path = save_uploaded_image(uploaded_file)
-            st.image(uploaded_preview_path, caption="Uploaded image", use_container_width=True)
+            st.image(uploaded_preview_path, caption="Uploaded image", width="stretch")
             with st.spinner("Extracting features…"):
                 try:
                     uploaded_embedding = get_image_embedding(uploaded_preview_path)
@@ -147,7 +147,7 @@ with left:
                     path = save_image_from_url(url.strip())
                     st.session_state.url_image_path = path
                     # show preview
-                    st.image(path, caption="URL image", use_container_width=True)
+                    st.image(path, caption="URL image", width="stretch")
                     # embed
                     with st.spinner("Extracting features…"):
                         st.session_state.url_embedding = get_image_embedding(path)
@@ -157,7 +157,7 @@ with left:
 
         # If already loaded earlier, show preview again
         if st.session_state.url_image_path and os.path.exists(st.session_state.url_image_path):
-            st.image(st.session_state.url_image_path, caption="URL image", use_container_width=True)
+            st.image(st.session_state.url_image_path, caption="URL image", width="stretch")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -173,7 +173,7 @@ with right:
     )
 
     st.markdown("<div class='cta-btn'>", unsafe_allow_html=True)
-    find_clicked = st.button("✨ Find Similar", use_container_width=True)
+    find_clicked = st.button("✨ Find Similar", width="stretch")
     st.markdown("</div>", unsafe_allow_html=True)
 
     if find_clicked:
@@ -208,7 +208,7 @@ with right:
                     with cols[idx % 3]:
                         st.image(
                             path,
-                            use_container_width=True,
+                            width="stretch",
                             caption=(f"Similarity: {score:.3f}" if score is not None else None),
                         )
                     shown += 1
