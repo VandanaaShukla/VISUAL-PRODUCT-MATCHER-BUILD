@@ -22,6 +22,15 @@ from core import config
 TMP_DIR = os.path.join(config.INDEX_DIR, "tmp_uploads")
 os.makedirs(TMP_DIR, exist_ok=True)
 
+# Compatibility helper: new API on cloud, old API locally
+def show_image(img_or_path, caption=None):
+    try:
+        # Newer Streamlit (≥1.49) accepts string widths
+        st.image(img_or_path, caption=caption, width="stretch")
+    except TypeError:
+        # Older Streamlit (≤1.48) needs the legacy flag
+        st.image(img_or_path, caption=caption, use_container_width=True)
+
 def save_image_from_url(url: str) -> str:
     """Download an image from URL, save in temp, return local path."""
     resp = requests.get(url, timeout=15)
@@ -118,7 +127,7 @@ with left:
 
         if uploaded_file is not None:
             uploaded_preview_path = save_uploaded_image(uploaded_file)
-            st.image(uploaded_preview_path, caption="Uploaded image", use_container_width=True)
+            show_image(uploaded_preview_path, caption="Uploaded image")
             with st.spinner("Extracting features…"):
                 try:
                     uploaded_embedding = get_image_embedding(uploaded_preview_path)
@@ -147,7 +156,7 @@ with left:
                     path = save_image_from_url(url.strip())
                     st.session_state.url_image_path = path
                     # show preview
-                    st.image(path, caption="URL image", use_container_width=True)
+                    show_image(path, caption="URL image")
                     # embed
                     with st.spinner("Extracting features…"):
                         st.session_state.url_embedding = get_image_embedding(path)
@@ -157,7 +166,7 @@ with left:
 
         # If already loaded earlier, show preview again
         if st.session_state.url_image_path and os.path.exists(st.session_state.url_image_path):
-            st.image(st.session_state.url_image_path, caption="URL image", use_container_width=True)
+            show_image(st.session_state.url_image_path, caption="URL image")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -206,9 +215,8 @@ with right:
                     continue
                 if score is None or score >= threshold:
                     with cols[idx % 3]:
-                        st.image(
+                        show_image(
                             path,
-                            use_container_width=True,
                             caption=(f"Similarity: {score:.3f}" if score is not None else None),
                         )
                     shown += 1
