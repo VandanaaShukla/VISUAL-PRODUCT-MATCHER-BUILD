@@ -11,7 +11,7 @@ import streamlit as st
 logging.getLogger("streamlit.watcher.local_sources_watcher").setLevel(logging.ERROR)
 
 # Allow "from core import ..." imports
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.clip_utils import get_image_embedding
 from core.index_manager import search_similar, prune_missing_files  # optional auto-prune
@@ -22,7 +22,7 @@ from core import config
 TMP_DIR = os.path.join(config.INDEX_DIR, "tmp_uploads")
 os.makedirs(TMP_DIR, exist_ok=True)
 
-# Compatibility helper: new API on cloud, old API locally
+# Version-compat image helper: new API on cloud, old API locally
 def show_image(img_or_path, caption=None):
     try:
         # Newer Streamlit (≥1.49) accepts string widths
@@ -44,6 +44,14 @@ def save_image_from_url(url: str) -> str:
     img.save(fname, "JPEG" if ext in ("jpg", "jpeg") else ext.upper())
     return fname
 
+def _resolve_ui_path(p: str) -> str:
+    """Ensure a path is absolute (rooted at repo) and POSIX-like for Streamlit."""
+    from pathlib import Path
+    q = Path(p)
+    if not q.is_absolute():
+        q = Path(config.REPO_ROOT) / q
+    return q.as_posix()
+
 # ---------------- UI SETUP ----------------
 st.set_page_config(page_title="Visual Product Matcher", layout="wide")
 
@@ -53,7 +61,7 @@ try:
 except Exception:
     pass
 
-# Custom styling: keep normal background, enhance header & button
+# Custom styling
 st.markdown(
     """
     <style>
@@ -138,15 +146,17 @@ with left:
     # ---- URL Tab ----
     with tabs[1]:
         url = st.text_input("Paste an image URL (http/https)")
-        colu1, colu2 = st.columns([1,1])
+        colu1, colu2 = st.columns([1, 1])
         load_clicked = colu1.button("Load URL Image")
         clear_clicked = colu2.button("Clear URL")
 
         if clear_clicked:
             # clear previous URL state & temp file
             if st.session_state.url_image_path and os.path.exists(st.session_state.url_image_path):
-                try: os.remove(st.session_state.url_image_path)
-                except Exception: pass
+                try:
+                    os.remove(st.session_state.url_image_path)
+                except Exception:
+                    pass
             st.session_state.url_image_path = None
             st.session_state.url_embedding = None
 
@@ -175,9 +185,33 @@ with right:
     st.markdown("<div class='box'>", unsafe_allow_html=True)
     st.subheader("2) Find similar images")
 
+    # ---- DEBUG DIAGNOSTICS (temporary; remove once OK) ----
+    from pathlib import Path
+    import pickle as _p
+
+    st.caption("Diagnostics (temporary)")
+    st.write("Repo root:", config.REPO_ROOT.as_posix() if hasattr(config.REPO_ROOT, "as_posix") else str(config.REPO_ROOT))
+    st.write("IMAGE_DIR exists:", Path(config.IMAGE_DIR).exists())
+    st.write("INDEX_DIR exists:", Path(config.INDEX_DIR).exists())
+    st.write("Index exists:", Path(config.FIASS_INDEX_FILE).exists())
+    st.write("Paths exists:", Path(config.IMAGE_PATH_FILE).exists())
+    try:
+        with open(config.IMAGE_PATH_FILE, "rb") as _f:
+            _paths = _p.load(_f)
+        st.write("image_paths.pkl count:", len(_paths))
+        if _paths:
+            _p0 = _paths[0]
+            _abs0 = (Path(_p0) if Path(_p0).is_absolute() else Path(config.REPO_ROOT) / _p0)
+            st.write("First path (stored):", _p0)
+            st.write("First path (abs):", _abs0.as_posix())
+            st.write("First path exists here:", _abs0.exists())
+    except Exception as _e:
+        st.error(f"Failed to read image_paths.pkl: {_e}")
+    # -------------------------------------------------------
+
     threshold = st.slider(
         "Minimum similarity (0–1)",
-        0.0, 1.0, 0.60, 0.01,
+        0.0, 1.0, 0.30, 0.01,  # friendlier default so results aren't hidden
         help="Hide weak matches below this score"
     )
 
@@ -211,12 +245,15 @@ with right:
             cols = st.columns(3, gap="medium")
             shown = 0
             for idx, (path, score) in enumerate(iter_results(results)):
-                if not os.path.exists(path):
+                ui_path = _resolve_ui_path(path)
+                if not os.path.exists(ui_path):
+                    # temporary: show which files are missing
+                    st.write("Missing file (debug):", ui_path)
                     continue
                 if score is None or score >= threshold:
                     with cols[idx % 3]:
                         show_image(
-                            path,
+                            ui_path,
                             caption=(f"Similarity: {score:.3f}" if score is not None else None),
                         )
                     shown += 1
