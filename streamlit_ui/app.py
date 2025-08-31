@@ -222,48 +222,48 @@ with right:
     st.subheader("2) Find similar images")
 
     # ---- DEBUG DIAGNOSTICS (temporary; remove once OK) ----
-    import subprocess, shlex
-    def _git(cmd: str):
-        try:
-            return subprocess.check_output(shlex.split(cmd)).decode().strip()
-        except Exception as e:
-            return f"ERR: {e}"
+    # import subprocess, shlex
+    # def _git(cmd: str):
+    #     try:
+    #         return subprocess.check_output(shlex.split(cmd)).decode().strip()
+    #     except Exception as e:
+    #         return f"ERR: {e}"
 
-    st.caption("Diagnostics (temporary)")
-    st.write("Deployed commit:", _git("git rev-parse HEAD"))
-    st.write("Repo root:", config.REPO_ROOT.as_posix() if hasattr(config.REPO_ROOT, "as_posix") else str(config.REPO_ROOT))
-    st.write("IMAGE_DIR exists:", Path(config.IMAGE_DIR).exists())
-    st.write("INDEX_DIR exists:", Path(config.INDEX_DIR).exists())
-    st.write("Index exists:", Path(config.FIASS_INDEX_FILE).exists())
-    st.write("Paths exists:", Path(config.IMAGE_PATH_FILE).exists())
+    # st.caption("Diagnostics (temporary)")
+    # st.write("Deployed commit:", _git("git rev-parse HEAD"))
+    # st.write("Repo root:", config.REPO_ROOT.as_posix() if hasattr(config.REPO_ROOT, "as_posix") else str(config.REPO_ROOT))
+    # st.write("IMAGE_DIR exists:", Path(config.IMAGE_DIR).exists())
+    # st.write("INDEX_DIR exists:", Path(config.INDEX_DIR).exists())
+    # st.write("Index exists:", Path(config.FIASS_INDEX_FILE).exists())
+    # st.write("Paths exists:", Path(config.IMAGE_PATH_FILE).exists())
 
-    # image_paths.pkl sanity
-    try:
-        with open(config.IMAGE_PATH_FILE, "rb") as _f:
-            _paths = _pkl.load(_f)
-        st.write("image_paths.pkl count:", len(_paths))
-        if _paths:
-            _p0 = _paths[0]
-            _abs0 = (Path(_p0) if Path(_p0).is_absolute() else Path(config.REPO_ROOT) / _p0)
-            st.write("First path (stored):", _p0)
-            st.write("First path (abs):", _abs0.as_posix())
-            st.write("First path exists here:", _abs0.exists())
-    except Exception as _e:
-        st.error(f"Failed to read image_paths.pkl: {_e}")
+    # # image_paths.pkl sanity
+    # try:
+    #     with open(config.IMAGE_PATH_FILE, "rb") as _f:
+    #         _paths = _pkl.load(_f)
+    #     st.write("image_paths.pkl count:", len(_paths))
+    #     if _paths:
+    #         _p0 = _paths[0]
+    #         _abs0 = (Path(_p0) if Path(_p0).is_absolute() else Path(config.REPO_ROOT) / _p0)
+    #         st.write("First path (stored):", _p0)
+    #         st.write("First path (abs):", _abs0.as_posix())
+    #         st.write("First path exists here:", _abs0.exists())
+    # except Exception as _e:
+    #     st.error(f"Failed to read image_paths.pkl: {_e}")
 
-    # index file & folder listing
-    st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
-    st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
-    try:
-        st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
-    except Exception:
-        st.write("Index size (bytes): <not found>")
+    # # index file & folder listing
+    # st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
+    # st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
+    # try:
+    #     st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
+    # except Exception:
+    #     st.write("Index size (bytes): <not found>")
 
     # -------------------------------------------------------
 
     threshold = st.slider(
         "Minimum similarity (0–1)",
-        0.0, 1.0, 0.30, 0.01,  # friendlier default so results aren't hidden
+        0.0, 1.0, 0.60, 0.01,  # friendlier default so results aren't hidden
         help="Hide weak matches below this score",
     )
 
