@@ -195,6 +195,7 @@ with right:
     st.write("INDEX_DIR exists:", Path(config.INDEX_DIR).exists())
     st.write("Index exists:", Path(config.FIASS_INDEX_FILE).exists())
     st.write("Paths exists:", Path(config.IMAGE_PATH_FILE).exists())
+    
     try:
         with open(config.IMAGE_PATH_FILE, "rb") as _f:
             _paths = _p.load(_f)
@@ -207,6 +208,14 @@ with right:
             st.write("First path exists here:", _abs0.exists())
     except Exception as _e:
         st.error(f"Failed to read image_paths.pkl: {_e}")
+        from pathlib import Path
+st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
+st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
+try:
+    st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
+except Exception:
+    st.write("Index size (bytes): <not found>")
+
     # -------------------------------------------------------
 
     threshold = st.slider(
