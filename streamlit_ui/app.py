@@ -2,8 +2,11 @@
 import os
 import sys
 import logging
-import requests
 from io import BytesIO
+from pathlib import Path
+import pickle as _pkl
+
+import requests
 from PIL import Image
 import streamlit as st
 
@@ -18,17 +21,18 @@ from core.index_manager import search_similar, prune_missing_files  # optional a
 from core.storage import save_uploaded_image, remove_uploaded_image
 from core import config
 
-# ---------------- Utilities ----------------
-TMP_DIR = os.path.join(config.INDEX_DIR, "tmp_uploads")
-os.makedirs(TMP_DIR, exist_ok=True)
 
-# Version-compat image helper: new API on cloud, old API locally
+# ---------------- Utilities ----------------
+TMP_DIR = Path(config.INDEX_DIR) / "tmp_uploads"
+TMP_DIR.mkdir(parents=True, exist_ok=True)
+
 def show_image(img_or_path, caption=None):
+    """Streamlit width compatibility: new API on cloud, old API locally."""
     try:
         # Newer Streamlit (≥1.49) accepts string widths
         st.image(img_or_path, caption=caption, width="stretch")
     except TypeError:
-        # Older Streamlit (≤1.48) needs the legacy flag
+        # Older Streamlit (≤1.48) uses legacy flag
         st.image(img_or_path, caption=caption, use_container_width=True)
 
 def save_image_from_url(url: str) -> str:
@@ -40,20 +44,52 @@ def save_image_from_url(url: str) -> str:
     ext = (img.format or "JPEG").lower()
     if ext not in ("jpeg", "jpg", "png", "webp"):
         ext = "jpg"
-    fname = os.path.join(TMP_DIR, f"url_{abs(hash(url))}.{ext}")
+    fname = TMP_DIR / f"url_{abs(hash(url))}.{ext}"
     img.save(fname, "JPEG" if ext in ("jpg", "jpeg") else ext.upper())
-    return fname
+    return str(fname)
 
 def _resolve_ui_path(p: str) -> str:
     """Ensure a path is absolute (rooted at repo) and POSIX-like for Streamlit."""
-    from pathlib import Path
     q = Path(p)
     if not q.is_absolute():
         q = Path(config.REPO_ROOT) / q
     return q.as_posix()
 
+# --- ensure prebuilt index is present (download from GitHub if missing) ---
+RAW_INDEX_URL = "https://raw.githubusercontent.com/VandanaaShukla/VISUAL-PRODUCT-MATCHER-BUILD/main/manage_index/index_file.pkl"
+
+def _ensure_index_file():
+    idx_path = Path(config.FIASS_INDEX_FILE)
+    if idx_path.exists():
+        return True, "present"
+    idx_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with st.spinner("Downloading prebuilt search index (~0.5 MB)…"):
+            r = requests.get(RAW_INDEX_URL, timeout=30)
+            r.raise_for_status()
+            idx_path.write_bytes(r.content)
+        # sanity check (expecting pickled numpy array)
+        try:
+            _ = _pkl.load(open(idx_path, "rb"))
+        except Exception as e:
+            try:
+                idx_path.unlink()
+            except Exception:
+                pass
+            return False, f"Downloaded index invalid: {e}"
+        return True, "downloaded"
+    except Exception as e:
+        return False, f"Failed to fetch index: {e}"
+
+
 # ---------------- UI SETUP ----------------
 st.set_page_config(page_title="Visual Product Matcher", layout="wide")
+
+# Make sure the index file exists (no rebuild; just fetch if missing)
+ok, why = _ensure_index_file()
+if not ok:
+    st.error(f"Prebuilt index not available. {why}")
+    st.stop()
 
 # Optional: prune dead paths silently on load so results never crash
 try:
@@ -152,9 +188,9 @@ with left:
 
         if clear_clicked:
             # clear previous URL state & temp file
-            if st.session_state.url_image_path and os.path.exists(st.session_state.url_image_path):
+            if st.session_state.url_image_path and Path(st.session_state.url_image_path).exists():
                 try:
-                    os.remove(st.session_state.url_image_path)
+                    Path(st.session_state.url_image_path).unlink()
                 except Exception:
                     pass
             st.session_state.url_image_path = None
@@ -175,7 +211,7 @@ with left:
                     st.error(f"Failed to load from URL: {e}")
 
         # If already loaded earlier, show preview again
-        if st.session_state.url_image_path and os.path.exists(st.session_state.url_image_path):
+        if st.session_state.url_image_path and Path(st.session_state.url_image_path).exists():
             show_image(st.session_state.url_image_path, caption="URL image")
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -185,40 +221,26 @@ with right:
     st.markdown("<div class='box'>", unsafe_allow_html=True)
     st.subheader("2) Find similar images")
 
-
-# --- Deployed commit & folder listing (debug) ---
-from pathlib import Path
-import subprocess, shlex
-
-def _git(cmd: str):
-    try:
-        return subprocess.check_output(shlex.split(cmd)).decode().strip()
-    except Exception as e:
-        return f"ERR: {e}"
-
-st.write("Deployed commit:", _git("git rev-parse HEAD"))
-st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
-st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
-try:
-    st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
-except Exception:
-    st.write("Index size (bytes): <not found>")
-
     # ---- DEBUG DIAGNOSTICS (temporary; remove once OK) ----
-    from pathlib import Path
-    import pickle as _p
-    
+    import subprocess, shlex
+    def _git(cmd: str):
+        try:
+            return subprocess.check_output(shlex.split(cmd)).decode().strip()
+        except Exception as e:
+            return f"ERR: {e}"
 
     st.caption("Diagnostics (temporary)")
+    st.write("Deployed commit:", _git("git rev-parse HEAD"))
     st.write("Repo root:", config.REPO_ROOT.as_posix() if hasattr(config.REPO_ROOT, "as_posix") else str(config.REPO_ROOT))
     st.write("IMAGE_DIR exists:", Path(config.IMAGE_DIR).exists())
     st.write("INDEX_DIR exists:", Path(config.INDEX_DIR).exists())
     st.write("Index exists:", Path(config.FIASS_INDEX_FILE).exists())
     st.write("Paths exists:", Path(config.IMAGE_PATH_FILE).exists())
-    
+
+    # image_paths.pkl sanity
     try:
         with open(config.IMAGE_PATH_FILE, "rb") as _f:
-            _paths = _p.load(_f)
+            _paths = _pkl.load(_f)
         st.write("image_paths.pkl count:", len(_paths))
         if _paths:
             _p0 = _paths[0]
@@ -228,22 +250,21 @@ except Exception:
             st.write("First path exists here:", _abs0.exists())
     except Exception as _e:
         st.error(f"Failed to read image_paths.pkl: {_e}")
-        from pathlib import Path
-st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
-st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
-try:
-    st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
-except Exception:
-    st.write("Index size (bytes): <not found>")
 
-
+    # index file & folder listing
+    st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
+    st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
+    try:
+        st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
+    except Exception:
+        st.write("Index size (bytes): <not found>")
 
     # -------------------------------------------------------
 
     threshold = st.slider(
         "Minimum similarity (0–1)",
         0.0, 1.0, 0.30, 0.01,  # friendlier default so results aren't hidden
-        help="Hide weak matches below this score"
+        help="Hide weak matches below this score",
     )
 
     st.markdown("<div class='cta-btn'>", unsafe_allow_html=True)
@@ -252,7 +273,11 @@ except Exception:
 
     if find_clicked:
         # Pick embedding priority: URL > Upload
-        query_embedding = st.session_state.url_embedding if st.session_state.url_embedding is not None else uploaded_embedding
+        query_embedding = (
+            st.session_state.url_embedding
+            if st.session_state.url_embedding is not None
+            else uploaded_embedding
+        )
 
         if query_embedding is None:
             st.warning("Please upload an image or load one from URL first.")
@@ -277,7 +302,7 @@ except Exception:
             shown = 0
             for idx, (path, score) in enumerate(iter_results(results)):
                 ui_path = _resolve_ui_path(path)
-                if not os.path.exists(ui_path):
+                if not Path(ui_path).exists():
                     # temporary: show which files are missing
                     st.write("Missing file (debug):", ui_path)
                     continue
@@ -294,9 +319,8 @@ except Exception:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# -------- Optional: clean up temp uploaded preview (upload tab) so the folder doesn't grow
-# (We keep URL images in tmp to allow re-search; Clear URL removes it.)
-if 'uploaded_preview_path' in locals() and uploaded_preview_path:
+# -------- Optional: clean up temp uploaded preview (upload tab)
+if "uploaded_preview_path" in locals() and uploaded_preview_path:
     try:
         remove_uploaded_image(uploaded_preview_path)
     except Exception:
