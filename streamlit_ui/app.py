@@ -185,9 +185,29 @@ with right:
     st.markdown("<div class='box'>", unsafe_allow_html=True)
     st.subheader("2) Find similar images")
 
+
+# --- Deployed commit & folder listing (debug) ---
+from pathlib import Path
+import subprocess, shlex
+
+def _git(cmd: str):
+    try:
+        return subprocess.check_output(shlex.split(cmd)).decode().strip()
+    except Exception as e:
+        return f"ERR: {e}"
+
+st.write("Deployed commit:", _git("git rev-parse HEAD"))
+st.write("Index path:", Path(config.FIASS_INDEX_FILE).as_posix())
+st.write("manage_index contents:", [p.name for p in Path(config.INDEX_DIR).glob("*")])
+try:
+    st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
+except Exception:
+    st.write("Index size (bytes): <not found>")
+
     # ---- DEBUG DIAGNOSTICS (temporary; remove once OK) ----
     from pathlib import Path
     import pickle as _p
+    
 
     st.caption("Diagnostics (temporary)")
     st.write("Repo root:", config.REPO_ROOT.as_posix() if hasattr(config.REPO_ROOT, "as_posix") else str(config.REPO_ROOT))
@@ -215,6 +235,8 @@ try:
     st.write("Index size (bytes):", Path(config.FIASS_INDEX_FILE).stat().st_size)
 except Exception:
     st.write("Index size (bytes): <not found>")
+
+
 
     # -------------------------------------------------------
 
